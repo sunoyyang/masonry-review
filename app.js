@@ -45,7 +45,7 @@
     Object.keys(views).forEach((k) => (views[k].hidden = k !== name));
     document.querySelectorAll(".nav-tab").forEach((t) =>
       t.classList.toggle("active", t.dataset.tab === name));
-    const titles = { home: "砌体结构 · 总复习", quiz: "练习模式", wrong: "错题本", stats: "学习统计" };
+    const titles = { home: "砌体结构 · 总复习", quiz: reviewMode ? "背题模式" : "练习模式", wrong: "错题本", stats: "学习统计" };
     headerTitle.textContent = titles[name] || "砌体结构";
     if (name === "home") refreshHomeStats();
     if (name === "wrong") renderWrong();
@@ -58,6 +58,9 @@
   let pos = 0;
   let sessionAnswered = new Set();
   let sessionResult = {};   // id -> { picked, correct }（本次练习会话内）
+  let reviewMode = false;   // 背题模式（直接显示答案）
+  let answerHidden = false; // 背题模式下是否隐藏答案（自测）
+  let panelTarget = "practice"; // 分类面板用途：practice / review
 
   function shuffle(arr) {
     const a = arr.slice();
@@ -85,8 +88,58 @@
     } else pos = 0;
     sessionAnswered = new Set();
     sessionResult = {};
+    reviewMode = false;
+    $("#categoryPanel").hidden = true;
     showView("quiz");
     renderQuestion();
+  }
+
+  // 背题模式：直接展示题目与答案，不做答题交互
+  function startReview(mode, opts) {
+    opts = opts || {};
+    list = mode === "category" ? QUESTIONS.filter((q) => q.topic === opts.topic) : QUESTIONS.slice();
+    pos = 0;
+    sessionAnswered = new Set();
+    sessionResult = {};
+    reviewMode = true;
+    $("#categoryPanel").hidden = true;
+    showView("quiz");
+    renderQuestion();
+  }
+
+  // 选项 HTML（背题模式下高亮正确项）
+  function optionsHTML(q, review) {
+    if (q.type === "judge") {
+      const items = [["1", "✓", "正确"], ["0", "✗", "错误"]];
+      return `<div class="options">` + items.map(([i, k, t]) =>
+        `<div class="opt${(review && ((i === "1") === q.answer)) ? " correct" : ""}" data-i="${i}"><span class="key">${k}</span><span>${t}</span></div>`).join("") + `</div>`;
+    }
+    return `<div class="options">` + q.options.map((o, i) =>
+      `<div class="opt${review && i === q.answer ? " correct" : ""}" data-i="${i}"><span class="key">${KEYS[i]}</span><span>${o}</span></div>`).join("") + `</div>`;
+  }
+
+  // 背题模式的答案块 HTML
+  function answerBoxHTML(q) {
+    if (q.type === "choice") {
+      return `<div class="answer-box">
+        <div class="correct-line">正确答案：<b>${KEYS[q.answer]}</b>　${q.options[q.answer]}</div>
+        <div class="explain">${q.explain}</div></div>`;
+    }
+    if (q.type === "judge") {
+      return `<div class="answer-box">
+        <div class="correct-line">正确答案：<b>${q.answer ? "正确" : "错误"}</b></div>
+        <div class="explain">${q.explain}</div></div>`;
+    }
+    if (q.type === "essay") {
+      return `<div class="answer-box"><div class="explain">${q.answer}</div></div>`;
+    }
+    if (q.type === "calc") {
+      return `<div class="answer-box">
+        <div class="explain"><b>解题步骤：</b></div>
+        <ol>${q.steps.map((s) => `<li>${s}</li>`).join("")}</ol>
+        <div class="verdict ok">结论：${q.answer}</div></div>`;
+    }
+    return "";
   }
 
   // ---------- 渲染题目 ----------
@@ -99,29 +152,28 @@
       </div><div class="q-text">${q.q}</div>`;
 
     if (q.type === "choice") {
-      html += `<div class="options">` + q.options.map((o, i) =>
-        `<div class="opt" data-i="${i}"><span class="key">${KEYS[i]}</span><span>${o}</span></div>`).join("") + `</div>`;
+      html += optionsHTML(q, reviewMode);
+      if (reviewMode) html += answerBoxHTML(q);
     } else if (q.type === "judge") {
-      html += `<div class="options">
-        <div class="opt" data-i="1"><span class="key">✓</span><span>正确</span></div>
-        <div class="opt" data-i="0"><span class="key">✗</span><span>错误</span></div>
-      </div>`;
+      html += optionsHTML(q, reviewMode);
+      if (reviewMode) html += answerBoxHTML(q);
     } else if (q.type === "essay") {
-      html += `<div class="essay-box">
+      if (reviewMode) html += answerBoxHTML(q);
+      else html += `<div class="essay-box">
         <button class="btn-reveal" id="revealBtn">显示答案</button>
         <div class="answer-block" id="answerBlock" hidden>${q.answer}</div>
       </div>`;
     } else if (q.type === "calc") {
       const fig = q.figure ? `<img class="q-fig" src="${q.figure}" alt="计算题配图" />` : "";
-      html += `<div class="calc-box">
-        ${fig}
-        <button class="btn-reveal" id="revealBtn">显示分步解析</button>
-        <div class="answer-block" id="answerBlock" hidden>
-          <div style="font-weight:700;margin-bottom:6px">解题步骤：</div>
-          <ol>${q.steps.map((s) => `<li>${s}</li>`).join("")}</ol>
-          <div class="verdict ok">结论：${q.answer}</div>
-        </div>
-      </div>`;
+      const body = reviewMode
+        ? answerBoxHTML(q)
+        : `<button class="btn-reveal" id="revealBtn">显示分步解析</button>
+           <div class="answer-block" id="answerBlock" hidden>
+             <div style="font-weight:700;margin-bottom:6px">解题步骤：</div>
+             <ol>${q.steps.map((s) => `<li>${s}</li>`).join("")}</ol>
+             <div class="verdict ok">结论：${q.answer}</div>
+           </div>`;
+      html += `<div class="calc-box">${fig}${body}</div>`;
     }
     card.innerHTML = html;
 
@@ -134,13 +186,19 @@
     $("#btnMark").textContent = marked ? "★" : "☆";
     $("#btnMark").style.color = marked ? "var(--warn)" : "";
 
-    // 事件
-    if (q.type === "choice" || q.type === "judge") {
+    // 背题模式：样式与“隐藏答案”开关状态
+    card.classList.toggle("review", reviewMode);
+    card.classList.toggle("hide-ans", reviewMode && answerHidden);
+    $("#btnToggleAns").hidden = !reviewMode;
+    $("#btnToggleAns").textContent = answerHidden ? "显示答案" : "隐藏答案";
+
+    // 事件（练习模式才绑定答题交互）
+    if ((q.type === "choice" || q.type === "judge") && !reviewMode) {
       card.querySelectorAll(".opt").forEach((el) => {
         el.addEventListener("click", () => onPick(q, parseInt(el.dataset.i, 10)));
       });
       if (sessionResult[q.id]) applyResult(q);
-    } else {
+    } else if ((q.type === "essay" || q.type === "calc") && !reviewMode) {
       const rb = $("#revealBtn");
       if (rb) rb.addEventListener("click", () => {
         $("#answerBlock").hidden = false;
@@ -192,6 +250,13 @@
     $("#btnMark").style.color = marked ? "var(--warn)" : "";
   });
 
+  // 背题模式：隐藏/显示答案
+  $("#btnToggleAns").addEventListener("click", () => {
+    answerHidden = !answerHidden;
+    $("#questionCard").classList.toggle("hide-ans", answerHidden);
+    $("#btnToggleAns").textContent = answerHidden ? "显示答案" : "隐藏答案";
+  });
+
   $("#btnPrev").addEventListener("click", () => { if (pos > 0) { pos--; renderQuestion(); } });
   $("#btnNext").addEventListener("click", () => {
     if (pos < list.length - 1) { pos++; renderQuestion(); }
@@ -222,22 +287,38 @@
   document.querySelectorAll(".mode-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const mode = btn.dataset.mode;
-      if (mode === "category") {
-        const panel = $("#categoryPanel");
-        const chips = $("#categoryChips");
-        if (panel.hidden) {
-          const topics = [...new Set(QUESTIONS.map((q) => q.topic))];
-          chips.innerHTML = topics.map((t) =>
-            `<button class="chip" data-topic="${t}">${t}</button>`).join("");
-          chips.querySelectorAll(".chip").forEach((c) =>
-            c.addEventListener("click", () => startPractice("category", { topic: c.dataset.topic })));
-          panel.hidden = false;
-        } else panel.hidden = true;
-      } else {
-        startPractice(mode);
-      }
+      if (mode === "category") { panelTarget = "practice"; openCategoryPanel(); }
+      else if (mode === "review") { panelTarget = "review"; openCategoryPanel(); }
+      else startPractice(mode);
     });
   });
+
+  // 分类面板（练习 / 背题 共用）
+  function openCategoryPanel() {
+    const panel = $("#categoryPanel");
+    const chips = $("#categoryChips");
+    const topics = [...new Set(QUESTIONS.map((q) => q.topic))];
+    let html = "";
+    if (panelTarget === "review") {
+      html += `<button class="chip" data-topic="__all__">全部</button>`;
+    }
+    html += topics.map((t) => `<button class="chip" data-topic="${t}">${t}</button>`).join("");
+    chips.innerHTML = html;
+    chips.querySelectorAll(".chip").forEach((c) =>
+      c.addEventListener("click", () => {
+        const t = c.dataset.topic;
+        if (panelTarget === "review") {
+          if (t === "__all__") startReview("all");
+          else startReview("category", { topic: t });
+        } else {
+          startPractice("category", { topic: t });
+        }
+        panel.hidden = true;
+      }));
+    $("#categoryPanel .section-title").textContent =
+      panelTarget === "review" ? "选择分类开始背题" : "选择分类";
+    panel.hidden = false;
+  }
 
   // ---------- 错题本 ----------
   function renderWrong() {
@@ -259,6 +340,8 @@
         pos = Math.max(0, list.findIndex((q) => q.id === id));
         sessionAnswered = new Set();
         sessionResult = {};
+        reviewMode = false;
+        $("#categoryPanel").hidden = true;
         showView("quiz");
         renderQuestion();
       }));
