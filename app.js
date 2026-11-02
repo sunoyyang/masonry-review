@@ -1,0 +1,337 @@
+/* 砌体结构 · 第8章总复习 — 答题 PWA 逻辑 */
+(function () {
+  "use strict";
+
+  const STORE_KEY = "masonry_progress_v1";
+  const TYPE_LABEL = { choice: "选择题", judge: "判断题", essay: "简答题", calc: "计算题" };
+  const KEYS = ["A", "B", "C", "D", "E", "F"];
+
+  // ---------- 存储 ----------
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function save(data) { localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
+  let store = load();
+
+  function prog(id) {
+    if (!store[id]) store[id] = { c: 0, w: 0, m: false };
+    return store[id];
+  }
+  function record(id, correct) {
+    const p = prog(id);
+    if (correct) p.c++; else p.w++;
+    save(store);
+    refreshHomeStats();
+  }
+  function toggleMark(id) {
+    const p = prog(id);
+    p.m = !p.m;
+    save(store);
+  }
+  function wrongIds() {
+    return QUESTIONS.filter((q) => prog(q.id).w > 0).map((q) => q.id);
+  }
+
+  // ---------- DOM ----------
+  const $ = (s) => document.querySelector(s);
+  const views = {
+    home: $("#view-home"), quiz: $("#view-quiz"),
+    wrong: $("#view-wrong"), stats: $("#view-stats"),
+  };
+  const headerTitle = $("#headerTitle");
+
+  function showView(name) {
+    Object.keys(views).forEach((k) => (views[k].hidden = k !== name));
+    document.querySelectorAll(".nav-tab").forEach((t) =>
+      t.classList.toggle("active", t.dataset.tab === name));
+    const titles = { home: "砌体结构 · 总复习", quiz: "练习模式", wrong: "错题本", stats: "学习统计" };
+    headerTitle.textContent = titles[name] || "砌体结构";
+    if (name === "home") refreshHomeStats();
+    if (name === "wrong") renderWrong();
+    if (name === "stats") renderStats();
+    window.scrollTo(0, 0);
+  }
+
+  // ---------- 练习状态 ----------
+  let list = [];   // 当前题目数组
+  let pos = 0;
+  let sessionAnswered = new Set();
+  let sessionResult = {};   // id -> { picked, correct }（本次练习会话内）
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function startPractice(mode, opts) {
+    opts = opts || {};
+    if (mode === "sequential") list = QUESTIONS.slice();
+    else if (mode === "random") list = shuffle(QUESTIONS);
+    else if (mode === "wrong") {
+      const ids = wrongIds();
+      if (!ids.length) { toast("还没有错题，先去练习吧～"); return; }
+      list = QUESTIONS.filter((q) => ids.includes(q.id));
+    } else if (mode === "category") {
+      list = QUESTIONS.filter((q) => q.topic === opts.topic);
+    }
+    if (opts.startId != null) {
+      const idx = list.findIndex((q) => q.id === opts.startId);
+      pos = idx >= 0 ? idx : 0;
+    } else pos = 0;
+    sessionAnswered = new Set();
+    sessionResult = {};
+    showView("quiz");
+    renderQuestion();
+  }
+
+  // ---------- 渲染题目 ----------
+  function renderQuestion() {
+    const q = list[pos];
+    const card = $("#questionCard");
+    let html = `<div class="q-meta">
+        <span class="q-type">${TYPE_LABEL[q.type]}</span>
+        <span class="q-topic">${q.topic}</span>
+      </div><div class="q-text">${q.q}</div>`;
+
+    if (q.type === "choice") {
+      html += `<div class="options">` + q.options.map((o, i) =>
+        `<div class="opt" data-i="${i}"><span class="key">${KEYS[i]}</span><span>${o}</span></div>`).join("") + `</div>`;
+    } else if (q.type === "judge") {
+      html += `<div class="options">
+        <div class="opt" data-i="1"><span class="key">✓</span><span>正确</span></div>
+        <div class="opt" data-i="0"><span class="key">✗</span><span>错误</span></div>
+      </div>`;
+    } else if (q.type === "essay") {
+      html += `<div class="essay-box">
+        <button class="btn-reveal" id="revealBtn">显示答案</button>
+        <div class="answer-block" id="answerBlock" hidden>${q.answer}</div>
+      </div>`;
+    } else if (q.type === "calc") {
+      html += `<div class="calc-box">
+        <button class="btn-reveal" id="revealBtn">显示分步解析</button>
+        <div class="answer-block" id="answerBlock" hidden>
+          <div style="font-weight:700;margin-bottom:6px">解题步骤：</div>
+          <ol>${q.steps.map((s) => `<li>${s}</li>`).join("")}</ol>
+          <div class="verdict ok">结论：${q.answer}</div>
+        </div>
+      </div>`;
+    }
+    card.innerHTML = html;
+
+    // 进度
+    $("#progressText").textContent = (pos + 1) + " / " + list.length;
+    $("#progressFill").style.width = ((pos + 1) / list.length * 100) + "%";
+    $("#btnPrev").disabled = pos === 0;
+    $("#btnNext").textContent = pos === list.length - 1 ? "完成 ✓" : "下一题";
+    const marked = prog(q.id).m;
+    $("#btnMark").textContent = marked ? "★" : "☆";
+    $("#btnMark").style.color = marked ? "var(--warn)" : "";
+
+    // 事件
+    if (q.type === "choice" || q.type === "judge") {
+      card.querySelectorAll(".opt").forEach((el) => {
+        el.addEventListener("click", () => onPick(q, parseInt(el.dataset.i, 10)));
+      });
+      if (sessionResult[q.id]) applyResult(q);
+    } else {
+      const rb = $("#revealBtn");
+      if (rb) rb.addEventListener("click", () => {
+        $("#answerBlock").hidden = false;
+        rb.hidden = true;
+      });
+    }
+  }
+
+  function onPick(q, picked) {
+    if (sessionResult[q.id]) return;
+    const correct = q.type === "judge"
+      ? (picked === 1 ? true : false) === q.answer
+      : picked === q.answer;
+    sessionResult[q.id] = { picked, correct };
+    applyResult(q);
+    record(q.id, correct);
+    // 错题本角标实时刷新
+    if (!correct) { $("#wrongBadge").textContent = wrongIds().length; }
+  }
+
+  function applyResult(q) {
+    const res = sessionResult[q.id];
+    const opts = document.querySelectorAll("#questionCard .opt");
+    opts.forEach((o) => o.classList.add("locked"));
+    if (q.type === "judge") {
+      const truthIdx = q.answer ? 1 : 0;
+      opts[truthIdx].classList.add("correct");
+      if (!res.correct) opts[res.picked].classList.add("wrong");
+    } else {
+      opts[q.answer].classList.add("correct");
+      if (!res.correct) opts[res.picked].classList.add("wrong");
+    }
+    const fb = document.createElement("div");
+    fb.className = "feedback " + (res.correct ? "ok" : "err");
+    fb.textContent = res.correct ? "✓ 回答正确" : "✗ 回答错误";
+    document.querySelector("#questionCard .options").after(fb);
+    const ex = document.createElement("div");
+    ex.className = "explain";
+    ex.innerHTML = (res.correct ? "" : `<b>正确答案：${q.type === "judge" ? (q.answer ? "正确" : "错误") : KEYS[q.answer]}</b><br>`) + q.explain;
+    fb.after(ex);
+  }
+
+  // 标记
+  $("#btnMark").addEventListener("click", () => {
+    const q = list[pos];
+    toggleMark(q.id);
+    const marked = prog(q.id).m;
+    $("#btnMark").textContent = marked ? "★" : "☆";
+    $("#btnMark").style.color = marked ? "var(--warn)" : "";
+  });
+
+  $("#btnPrev").addEventListener("click", () => { if (pos > 0) { pos--; renderQuestion(); } });
+  $("#btnNext").addEventListener("click", () => {
+    if (pos < list.length - 1) { pos++; renderQuestion(); }
+    else { toast("本组练习完成 🎉"); showView("home"); }
+  });
+  $("#btnBack").addEventListener("click", () => showView("home"));
+
+  // ---------- 首页 ----------
+  function refreshHomeStats() {
+    const total = QUESTIONS.length;
+    let attempted = 0, correct = 0, wrong = 0, marked = 0;
+    QUESTIONS.forEach((q) => {
+      const p = store[q.id]; if (!p) return;
+      if (p.c + p.w > 0) attempted++;
+      correct += p.c; wrong += p.w; if (p.m) marked++;
+    });
+    const rate = correct + wrong > 0 ? Math.round(correct / (correct + wrong) * 100) : 0;
+    $("#homeStats").innerHTML = `
+      <div class="stat"><b>${attempted}</b><span>已练习</span></div>
+      <div class="stat"><b>${rate}%</b><span>正确率</span></div>
+      <div class="stat"><b>${wrong}</b><span>错题</span></div>
+      <div class="stat"><b>${marked}</b><span>收藏</span></div>`;
+    $("#wrongBadge").textContent = wrongIds().length;
+    $("#wrongBadge").style.display = wrongIds().length ? "inline-block" : "none";
+  }
+
+  // 模式按钮
+  document.querySelectorAll(".mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.dataset.mode;
+      if (mode === "category") {
+        const panel = $("#categoryPanel");
+        const chips = $("#categoryChips");
+        if (panel.hidden) {
+          const topics = [...new Set(QUESTIONS.map((q) => q.topic))];
+          chips.innerHTML = topics.map((t) =>
+            `<button class="chip" data-topic="${t}">${t}</button>`).join("");
+          chips.querySelectorAll(".chip").forEach((c) =>
+            c.addEventListener("click", () => startPractice("category", { topic: c.dataset.topic })));
+          panel.hidden = false;
+        } else panel.hidden = true;
+      } else {
+        startPractice(mode);
+      }
+    });
+  });
+
+  // ---------- 错题本 ----------
+  function renderWrong() {
+    const ids = wrongIds();
+    const wrap = $("#wrongList");
+    if (!ids.length) { wrap.innerHTML = `<div class="empty">还没有错题，太棒了！</div>`; return; }
+    wrap.innerHTML = QUESTIONS.filter((q) => ids.includes(q.id)).map((q) => {
+      const p = prog(q.id);
+      return `<div class="list-item" data-id="${q.id}">
+        <div class="li-topic">${q.topic} · ${TYPE_LABEL[q.type]}</div>
+        <div class="li-q">${q.q}</div>
+        <div class="li-meta">答错 ${p.w} 次 · 点击重练</div>
+      </div>`;
+    }).join("");
+    wrap.querySelectorAll(".list-item").forEach((it) =>
+      it.addEventListener("click", () => {
+        const id = parseInt(it.dataset.id, 10);
+        list = QUESTIONS.filter((q) => wrongIds().includes(q.id));
+        pos = Math.max(0, list.findIndex((q) => q.id === id));
+        sessionAnswered = new Set();
+        sessionResult = {};
+        showView("quiz");
+        renderQuestion();
+      }));
+  }
+  $("#btnWrongBack").addEventListener("click", () => showView("home"));
+
+  // ---------- 统计 ----------
+  function renderStats() {
+    let correct = 0, wrong = 0, attempted = 0, marked = 0;
+    QUESTIONS.forEach((q) => {
+      const p = store[q.id]; if (!p) return;
+      if (p.c + p.w > 0) attempted++;
+      correct += p.c; wrong += p.w; if (p.m) marked++;
+    });
+    const rate = correct + wrong > 0 ? Math.round(correct / (correct + wrong) * 100) : 0;
+    $("#statsOverview").innerHTML = `
+      <div class="stat-row"><span>总题量</span><b>${QUESTIONS.length}</b></div>
+      <div class="stat-row"><span>已练习</span><b>${attempted}</b></div>
+      <div class="stat-row"><span>总正确率</span><b style="color:var(--ok)">${rate}%</b></div>
+      <div class="stat-row"><span>累计答错</span><b style="color:var(--err)">${wrong}</b></div>
+      <div class="stat-row"><span>收藏题数</span><b>${marked}</b></div>`;
+
+    const topics = [...new Set(QUESTIONS.map((q) => q.topic))];
+    let html = `<div class="section-title">各分类掌握度</div>`;
+    topics.forEach((t) => {
+      let c = 0, w = 0;
+      QUESTIONS.filter((q) => q.topic === t).forEach((q) => {
+        const p = store[q.id]; if (p) { c += p.c; w += p.w; }
+      });
+      const total = c + w;
+      const r = total ? Math.round(c / total * 100) : 0;
+      html += `<div class="bar-line">
+        <div class="bl-head"><span>${t}</span><span>${total ? r + "%" : "未练习"}</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${r}%"></div></div>
+      </div>`;
+    });
+    $("#statsByTopic").innerHTML = html;
+  }
+  $("#btnStatsBack").addEventListener("click", () => showView("home"));
+
+  $("#btnReset").addEventListener("click", () => {
+    if (confirm("确定清空全部学习记录（含错题与收藏）？")) {
+      store = {}; save(store);
+      showView("home"); toast("已清空学习记录");
+    }
+  });
+
+  // 底部导航
+  document.querySelectorAll(".nav-tab").forEach((t) =>
+    t.addEventListener("click", () => showView(t.dataset.tab)));
+
+  // ---------- Toast ----------
+  let toastTimer;
+  function toast(msg) {
+    let el = $("#toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "toast";
+      el.style.cssText = "position:fixed;left:50%;bottom:100px;transform:translateX(-50%);" +
+        "background:rgba(0,0,0,.82);color:#fff;padding:10px 18px;border-radius:22px;font-size:14px;" +
+        "z-index:99;max-width:80%;text-align:center;transition:opacity .25s;pointer-events:none;";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg; el.style.opacity = "1";
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (el.style.opacity = "0"), 1800);
+  }
+
+  // 启动
+  refreshHomeStats();
+  showView("home");
+
+  // PWA Service Worker
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () =>
+      navigator.serviceWorker.register("sw.js").catch(() => {}));
+  }
+})();

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="砌体复习" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>砌体结构 · 第8章总复习</title>
+</head>
+<body>
+  <header class="app-header">
+    <h1 id="headerTitle">砌体结构 · 总复习</h1>
+  </header>
+
+  <main id="view-home" class="view">
+    <section class="hero card">
+      <div class="hero-title">第 8 章 总复习</div>
+      <div class="hero-sub">《砌体结构》选择题 / 判断题 / 简答题 / 计算题</div>
+      <div class="hero-stats" id="homeStats"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">练习模式</div>
+      <div class="mode-grid">
+        <button class="mode-btn" data-mode="sequential">
+          <span class="mode-ico">📑</span><span>顺序练习</span>
+        </button>
+        <button class="mode-btn" data-mode="random">
+          <span class="mode-ico">🔀</span><span>随机练习</span>
+        </button>
+        <button class="mode-btn" data-mode="wrong">
+          <span class="mode-ico">❌</span><span>错题练习</span>
+          <span class="badge" id="wrongBadge">0</span>
+        </button>
+        <button class="mode-btn" data-mode="category">
+          <span class="mode-ico">🗂️</span><span>分类练习</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="card" id="categoryPanel" hidden>
+      <div class="section-title">选择分类</div>
+      <div class="chip-wrap" id="categoryChips"></div>
+    </section>
+  </main>
+
+  <main id="view-quiz" class="view" hidden>
+    <div class="quiz-top">
+      <button class="icon-btn" id="btnBack">‹ 返回</button>
+      <div class="progress-text" id="progressText">1 / 10</div>
+      <button class="icon-btn" id="btnMark">☆</button>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+    <article class="card question-card" id="questionCard"></article>
+
+    <div class="quiz-nav">
+      <button class="nav-btn" id="btnPrev">上一题</button>
+      <button class="nav-btn primary" id="btnNext">下一题</button>
+    </div>
+  </main>
+
+  <main id="view-wrong" class="view" hidden>
+    <div class="quiz-top">
+      <button class="icon-btn" id="btnWrongBack">‹ 返回</button>
+      <div class="progress-text">错题本</div>
+      <span></span>
+    </div>
+    <div id="wrongList" class="list"></div>
+  </main>
+
+  <main id="view-stats" class="view" hidden>
+    <div class="quiz-top">
+      <button class="icon-btn" id="btnStatsBack">‹ 返回</button>
+      <div class="progress-text">学习统计</div>
+      <span></span>
+    </div>
+    <section class="card" id="statsOverview"></section>
+    <section class="card" id="statsByTopic"></section>
+    <button class="text-btn danger" id="btnReset">清空学习记录</button>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-tab active" data-tab="home"><span>🏠</span>首页</button>
+    <button class="nav-tab" data-tab="wrong"><span>❌</span>错题</button>
+    <button class="nav-tab" data-tab="stats"><span>📊</span>统计</button>
+  </nav>
+
+  <script src="questions.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
