@@ -137,6 +137,11 @@ body {
 .opt.locked { pointer-events: none; }
 
 .essay-box, .calc-box { margin-top: 14px; }
+.q-fig {
+  display: block; width: 100%; max-width: 440px; height: auto;
+  margin: 4px 0 14px; border-radius: 12px; border: 1px solid var(--line);
+  background: #fff;
+}
 .btn-reveal {
   width: 100%; padding: 12px; border: none; border-radius: 12px;
   background: var(--primary); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;

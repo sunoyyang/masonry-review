@@ -112,7 +112,9 @@
         <div class="answer-block" id="answerBlock" hidden>${q.answer}</div>
       </div>`;
     } else if (q.type === "calc") {
+      const fig = q.figure ? `<img class="q-fig" src="${q.figure}" alt="计算题配图" />` : "";
       html += `<div class="calc-box">
+        ${fig}
         <button class="btn-reveal" id="revealBtn">显示分步解析</button>
         <div class="answer-block" id="answerBlock" hidden>
           <div style="font-weight:700;margin-bottom:6px">解题步骤：</div>

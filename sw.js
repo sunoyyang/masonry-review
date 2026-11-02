@@ -2,7 +2,8 @@ const CACHE = "masonry-review-v1";
 const FILES = [
   "./", "./index.html", "./styles.css", "./app.js", "./questions.js",
   "./manifest.json",
-  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"
+  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png",
+  "./images/calc16.png", "./images/calc17.png"
 ];
 
 self.addEventListener("install", (e) => {
