@@ -61,6 +61,7 @@
   let reviewMode = false;   // 背题模式（直接显示答案）
   let answerHidden = false; // 背题模式下是否隐藏答案（自测）
   let panelTarget = "practice"; // 分类面板用途：practice / review
+  let visited = new Set();  // 背题模式下已浏览的题目 id
 
   function shuffle(arr) {
     const a = arr.slice();
@@ -89,6 +90,7 @@
     sessionAnswered = new Set();
     sessionResult = {};
     reviewMode = false;
+    visited = new Set();
     $("#categoryPanel").hidden = true;
     showView("quiz");
     renderQuestion();
@@ -102,6 +104,7 @@
     sessionAnswered = new Set();
     sessionResult = {};
     reviewMode = true;
+    visited = new Set();
     $("#categoryPanel").hidden = true;
     showView("quiz");
     renderQuestion();
@@ -145,6 +148,7 @@
   // ---------- 渲染题目 ----------
   function renderQuestion() {
     const q = list[pos];
+    if (reviewMode) visited.add(q.id);
     const card = $("#questionCard");
     let html = `<div class="q-meta">
         <span class="q-type">${TYPE_LABEL[q.type]}</span>
@@ -191,6 +195,8 @@
     card.classList.toggle("hide-ans", reviewMode && answerHidden);
     $("#btnToggleAns").hidden = !reviewMode;
     $("#btnToggleAns").textContent = answerHidden ? "显示答案" : "隐藏答案";
+
+    renderToc();
 
     // 事件（练习模式才绑定答题交互）
     if ((q.type === "choice" || q.type === "judge") && !reviewMode) {
@@ -255,6 +261,45 @@
     answerHidden = !answerHidden;
     $("#questionCard").classList.toggle("hide-ans", answerHidden);
     $("#btnToggleAns").textContent = answerHidden ? "显示答案" : "隐藏答案";
+  });
+
+  // 题号总览抽屉
+  function tocStatus(id) {
+    if (reviewMode) return visited.has(id) ? "seen" : "none";
+    const r = sessionResult[id];
+    if (!r) return "none";
+    return r.correct ? "ok" : "wrong";
+  }
+  function renderToc() {
+    const grid = $("#tocGrid");
+    if (!grid) return;
+    const answered = list.filter((q) => reviewMode ? visited.has(q.id) : sessionResult[q.id]).length;
+    $("#tocTitle").textContent =
+      (reviewMode ? "背题模式" : "练习模式") +
+      ` · 共 ${list.length} 题 · 当前第 ${pos + 1} 题 · ${reviewMode ? "已浏览" : "已答"} ${answered} 题`;
+    let html = "";
+    list.forEach((q, i) => {
+      const st = tocStatus(q.id);
+      const cls = "toc-cell" + (st !== "none" ? " toc-" + st : "") + (i === pos ? " cur" : "");
+      const star = prog(q.id).m ? `<span class="toc-star">★</span>` : "";
+      html += `<button class="${cls}" data-i="${i}">${i + 1}${star}</button>`;
+    });
+    grid.innerHTML = html;
+  }
+  function openToc() { renderToc(); $("#tocOverlay").hidden = false; }
+  function closeToc() { $("#tocOverlay").hidden = true; }
+
+  $("#btnToc").addEventListener("click", openToc);
+  $("#tocClose").addEventListener("click", closeToc);
+  $("#tocOverlay").addEventListener("click", (e) => {
+    if (e.target === $("#tocOverlay")) closeToc();
+  });
+  $("#tocGrid").addEventListener("click", (e) => {
+    const cell = e.target.closest(".toc-cell");
+    if (!cell) return;
+    pos = parseInt(cell.dataset.i, 10);
+    closeToc();
+    renderQuestion();
   });
 
   $("#btnPrev").addEventListener("click", () => { if (pos > 0) { pos--; renderQuestion(); } });

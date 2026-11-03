@@ -57,8 +57,11 @@
     <div class="quiz-top">
       <button class="icon-btn" id="btnBack">‹ 返回</button>
       <div class="progress-text" id="progressText">1 / 10</div>
-      <button class="icon-btn" id="btnToggleAns" hidden>隐藏答案</button>
-      <button class="icon-btn" id="btnMark">☆</button>
+      <div class="quiz-top-right">
+        <button class="icon-btn" id="btnToc">☰ 目录</button>
+        <button class="icon-btn" id="btnToggleAns" hidden>隐藏答案</button>
+        <button class="icon-btn" id="btnMark">☆</button>
+      </div>
     </div>
     <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
 
@@ -89,6 +92,17 @@
     <section class="card" id="statsByTopic"></section>
     <button class="text-btn danger" id="btnReset">清空学习记录</button>
   </main>
+
+  <!-- 题号总览抽屉 -->
+  <div class="toc-overlay" id="tocOverlay" hidden>
+    <div class="toc-sheet" id="tocSheet">
+      <div class="toc-head">
+        <span id="tocTitle">题号总览</span>
+        <button class="icon-btn" id="tocClose">关闭</button>
+      </div>
+      <div class="toc-grid" id="tocGrid"></div>
+    </div>
+  </div>
 
   <nav class="bottom-nav">
     <button class="nav-tab active" data-tab="home"><span>🏠</span>首页</button>
